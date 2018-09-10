@@ -924,6 +924,10 @@ void CTranscodingPipeline::StopSession()
 {
     AutomaticMutex guard(m_mStopSession);
     m_bForceStop = true;
+
+    msdk_stringstream ss;
+    ss << MSDK_STRING("session [") << GetSessionText() << MSDK_STRING("] m_bForceStop is set") << std::endl;
+    msdk_printf(MSDK_STRING("%s"), ss.str().c_str());
 }
 
 bool CTranscodingPipeline::IsOverlayUsed()
@@ -4466,20 +4470,24 @@ mfxStatus CTranscodingPipeline::Run()
 {
     mfxStatus sts = MFX_ERR_NONE;
 
+    msdk_stringstream ss;
     if (m_bDecodeEnable && m_bEncodeEnable)
     {
         sts = Transcode();
-        MSDK_CHECK_STATUS(sts, "CTranscodingPipeline::Run::Transcode() failed");
+        ss << MSDK_STRING("CTranscodingPipeline::Run::Transcode() [") << GetSessionText() << MSDK_STRING("] failed");
+        MSDK_CHECK_STATUS(sts, ss.str());
     }
     else if (m_bDecodeEnable)
     {
         sts = Decode();
-        MSDK_CHECK_STATUS(sts, "CTranscodingPipeline::Run::Decode() failed");
+        ss << MSDK_STRING("CTranscodingPipeline::Run::Decode() [") << GetSessionText() << MSDK_STRING("] failed");
+        MSDK_CHECK_STATUS(sts, ss.str());
     }
     else if (m_bEncodeEnable)
     {
         sts = Encode();
-        MSDK_CHECK_STATUS(sts, "CTranscodingPipeline::Run::Encode() failed");
+        ss << MSDK_STRING("CTranscodingPipeline::Run::Encode() [") << GetSessionText() << MSDK_STRING("] failed");
+        MSDK_CHECK_STATUS(sts, ss.str());
     }
     else
         return MFX_ERR_UNSUPPORTED;

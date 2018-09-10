@@ -617,6 +617,14 @@ namespace TranscodingSample
         void StopSession();
         bool IsOverlayUsed();
         size_t GetRobustFlag();
+
+        msdk_string GetSessionText()
+        {
+            msdk_stringstream ss;
+            ss << m_pmfxSession->operator mfxSession();
+
+            return ss.str();
+        }
     protected:
         virtual mfxStatus CheckRequiredAPIVersion(mfxVersion& version, sInputParams *pParams);
 

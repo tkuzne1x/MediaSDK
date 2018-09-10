@@ -121,6 +121,10 @@
     //#define MFX_ENABLE_HEVCE_FADE_DETECTION
 #endif
 
+#if defined(MFX_ENABLE_VP9_VIDEO_ENCODE)
+    #define MFX_ENABLE_VP9_VIDEO_ENCODE_HW
+#endif
+
 #if defined(MFX_ENABLE_VP9_VIDEO_DECODE)
 #define MFX_ENABLE_VP9_VIDEO_DECODE_HW
 #endif
@@ -129,11 +133,8 @@
 #define MFX_ENABLE_VP8_VIDEO_DECODE_HW
 #endif
 
-#if MFX_VERSION >= 1026
-    #define MFX_ENABLE_MCTF
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
+#if (MFX_VERSION >= MFX_VERSION_NEXT) && defined(MFX_ENABLE_MCTF)
     #define MFX_ENABLE_MCTF_EXT // extended MCTF interface
-#endif
 #endif
 
 // The line below HAS to be changed to MFX_VERSION specific version i.e. 1027

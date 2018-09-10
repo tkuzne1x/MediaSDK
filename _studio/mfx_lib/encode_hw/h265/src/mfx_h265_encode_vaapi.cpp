@@ -790,25 +790,6 @@ mfxStatus VAAPIEncoder::CreateAuxilliaryDevice(
     sts = m_core->QueryPlatform(&p);
     MFX_CHECK_STS(sts);
 
-    if (p.CodeName >= MFX_PLATFORM_SKYLAKE)
-    {
-        m_caps.Color420Only       = 1;
-        m_caps.BitDepth8Only      = 1;
-        m_caps.MaxEncodedBitDepth = 0;
-        m_caps.YUV422ReconSupport = 0;
-        m_caps.YUV444ReconSupport = 0;
-    }
-    if (p.CodeName >= MFX_PLATFORM_KABYLAKE)
-    {
-        m_caps.BitDepth8Only      = 0;
-        m_caps.MaxEncodedBitDepth = 1;
-    }
-    if (p.CodeName >= MFX_PLATFORM_ICELAKE)
-    {
-        m_caps.Color420Only = 0;
-        m_caps.YUV422ReconSupport = 1;
-        m_caps.YUV444ReconSupport = 1;
-    }
     if (p.CodeName >= MFX_PLATFORM_CANNONLAKE)
     {
         if(vaParams.entrypoint == VAEntrypointEncSliceLP) //CNL + VDENC => LCUSizeSupported = 4
@@ -829,13 +810,30 @@ mfxStatus VAAPIEncoder::CreateAuxilliaryDevice(
 
     m_caps.VCMBitRateControl =
         attrs[ idx_map[VAConfigAttribRateControl] ].value & VA_RC_VCM ? 1 : 0; //Video conference mode
-    m_caps.RollingIntraRefresh     = 0; /* (attrs[3].value & (~VA_ATTRIB_NOT_SUPPORTED))  ? 1 : 0*/
+    m_caps.RollingIntraRefresh =
+            (attrs[idx_map[VAConfigAttribEncIntraRefresh]].value & (~VA_ATTRIB_NOT_SUPPORTED)) ? 1 : 0 ;
     m_caps.UserMaxFrameSizeSupport = 1;
     m_caps.MBBRCSupport            = 1;
     m_caps.MbQpDataSupport         = 1;
-    m_caps.Color420Only            = 1; // FIXME in case VAAPI direct YUY2/RGB support added
     m_caps.TUSupport               = 73;
 
+    if(attrs[idx_map[VAConfigAttribRTFormat]].value & VA_RT_FORMAT_YUV420_12)
+    {
+        m_caps.MaxEncodedBitDepth = 2;
+    }
+    else if(attrs[idx_map[VAConfigAttribRTFormat]].value & VA_RT_FORMAT_YUV420_10)
+    {
+        m_caps.MaxEncodedBitDepth = 1;
+    }
+    else if(attrs[idx_map[VAConfigAttribRTFormat]].value & VA_RT_FORMAT_YUV420)
+    {
+        m_caps.MaxEncodedBitDepth = 0;
+    }
+    m_caps.Color420Only = (attrs[idx_map[VAConfigAttribRTFormat]].value & (VA_RT_FORMAT_YUV422 | VA_RT_FORMAT_YUV444)) ? 0 : 1;
+    m_caps.BitDepth8Only = (attrs[idx_map[VAConfigAttribRTFormat]].value &
+        (VA_RT_FORMAT_YUV420_10 | VA_RT_FORMAT_YUV420_12)) ? 0 : 1;
+    m_caps.YUV422ReconSupport = attrs[idx_map[VAConfigAttribRTFormat]].value & VA_RT_FORMAT_YUV422 ? 1 : 0;
+    m_caps.YUV444ReconSupport = attrs[idx_map[VAConfigAttribRTFormat]].value & VA_RT_FORMAT_YUV444 ? 1 : 0;
 
     if ((attrs[ idx_map[VAConfigAttribMaxPictureWidth] ].value != VA_ATTRIB_NOT_SUPPORTED) &&
         (attrs[ idx_map[VAConfigAttribMaxPictureWidth] ].value != 0))
@@ -945,7 +943,8 @@ mfxStatus VAAPIEncoder::CreateAccelerationService(MfxVideoParam const & par)
                           attrib.data(), (mfxI32)attrib.size());
     MFX_CHECK_WITH_ASSERT(VA_STATUS_SUCCESS == vaSts, MFX_ERR_DEVICE_FAILED);
 
-    if ((attrib[0].value & VA_RT_FORMAT_YUV420) == 0)
+    if ((attrib[0].value & VA_RT_FORMAT_YUV420) == 0
+        && (attrib[0].value & VA_RT_FORMAT_YUV420_10) == 0)
         return MFX_ERR_DEVICE_FAILED;
 
     mfxU8 vaRCType = ConvertRateControlMFX2VAAPI(par.mfx.RateControlMethod, par.isSWBRC());
@@ -953,7 +952,6 @@ mfxStatus VAAPIEncoder::CreateAccelerationService(MfxVideoParam const & par)
     if ((attrib[1].value & vaRCType) == 0)
         return MFX_ERR_DEVICE_FAILED;
 
-    attrib[0].value = VA_RT_FORMAT_YUV420;
     attrib[1].value = vaRCType;
 
     sts = CheckExtraVAattribs(attrib);
@@ -1324,7 +1322,6 @@ mfxStatus VAAPIEncoder::Execute(Task const & task, mfxHDLPair pair)
             MFX_CHECK_WITH_ASSERT(VA_STATUS_SUCCESS == vaSts, MFX_ERR_DEVICE_FAILED);
         }
     }
-
 
     if (bCUQPMap)
     {
@@ -1745,15 +1742,15 @@ mfxStatus VAAPIEncoder::QueryStatus(Task & task)
     {
         VASurfaceStatus surfSts = VASurfaceSkipped;
 
-        m_feedbackCache.erase(m_feedbackCache.begin() + indxSurf);
-        guard.Unlock();
+        vaSts = vaQuerySurfaceStatus(m_vaDisplay, waitSurface, &surfSts);
 
+        MFX_CHECK_WITH_ASSERT(VA_STATUS_SUCCESS == vaSts, MFX_ERR_DEVICE_FAILED);
+
+        if (VASurfaceReady == surfSts)
         {
-            MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_EXTCALL, "vaSyncSurface");
-            vaSts = vaSyncSurface(m_vaDisplay, waitSurface);
-            MFX_CHECK_WITH_ASSERT(VA_STATUS_SUCCESS == vaSts, MFX_ERR_DEVICE_FAILED);
+            m_feedbackCache.erase(m_feedbackCache.begin() + indxSurf);
+            guard.Unlock();
         }
-        surfSts = VASurfaceReady;
 
         switch (surfSts)
         {
