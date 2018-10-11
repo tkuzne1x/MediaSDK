@@ -34,14 +34,14 @@
 #include "mfx_common_int.h"
 #include "mfx_enc_common.h" // UMC::FrameRate
 
+#ifdef MFX_VA_LINUX
+#include "libmfx_core_vaapi.h"
+#endif
+
 #include "mfx_vpp_utils.h"
 #include "mfx_task.h"
 #include "mfx_vpp_defs.h"
 #include "mfx_vpp_hw.h"
-
-#ifdef MFX_VA_LINUX
-#include "libmfx_core_vaapi.h"
-#endif
 
 #ifdef MFX_ENABLE_MCTF
 #include "vm_time.h"
